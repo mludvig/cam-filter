@@ -11,7 +11,14 @@ import numpy as np
 import argparse
 import random
 import imutils
+import numpy
 import cv2
+
+# Config
+#crop_start = (50, 280)
+crop_start = (53, 268)
+crop_size = (224, 224)
+dark_factor = 0.3
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
@@ -20,6 +27,12 @@ ap.add_argument("-d", "--dataset", required=True, help="path to test images")
 ap.add_argument("-e", "--errors", required=False, help="path to error log file")
 ap.add_argument("-r", "--report", required=False, help="path to report log file")
 args = vars(ap.parse_args())
+
+# Prepare crop area
+crop_area = numpy.index_exp[
+    crop_start[0]:crop_start[0]+crop_size[0],
+    crop_start[1]:crop_start[1]+crop_size[1]
+]
 
 # load the trained convolutional neural network
 print("[INFO] loading network...")
@@ -50,10 +63,8 @@ for imagePath in imagePaths:
     orig = cv2.imread(imagePath)
 
     # pre-process the image for classification
-    orig = orig[53:53+224, 268:268+224]       # crop to 224x224 starting from 53:268 (h:w)
-    #cv2.imshow("Image", image)
-    #key = cv2.waitKey(0)
-    image = cv2.resize(orig, (28, 28))         # resize
+    image = orig[crop_area]
+    image = cv2.resize(image, (28, 28))
     image = image.astype("float") / 255.0
     image = img_to_array(image)
     image = np.expand_dims(image, axis=0)
@@ -76,9 +87,15 @@ for imagePath in imagePaths:
     if report:
         report.write(log_message + "\n")
 
-    # draw the label on the image
-    #output = imutils.resize(orig, width=400)
-    output = orig
+    ## display only every 2nd image
+    #if index % 2 == 0:
+    #    continue
+
+    # darken the ignored image part
+    output = (orig * dark_factor).astype(numpy.uint8)
+    output[crop_area] = orig[crop_area]
+
+    # put the label
     cv2.putText(output, label, (10, 25),  cv2.FONT_HERSHEY_DUPLEX, 0.7, color, 2)
 
     # show the output image
