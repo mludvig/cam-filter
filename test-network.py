@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-# USAGE
-# python test_network.py --model santa_not_santa.model --image images/examples/santa_01.png
+from __future__ import print_function
 
 # import the necessary packages
 from keras.preprocessing.image import img_to_array
@@ -12,11 +11,11 @@ import argparse
 import random
 import imutils
 import numpy
+import sys
 import cv2
 
 # Config
-#crop_start = (50, 280)
-crop_start = (53, 268)
+crop_start = (50, 285)
 crop_size = (224, 224)
 dark_factor = 0.3
 
@@ -24,8 +23,8 @@ dark_factor = 0.3
 ap = argparse.ArgumentParser()
 ap.add_argument("-m", "--model", required=True, help="path to trained model model")
 ap.add_argument("-d", "--dataset", required=True, help="path to test images")
-ap.add_argument("-e", "--errors", required=False, help="path to error log file")
 ap.add_argument("-r", "--report", required=False, help="path to report log file")
+ap.add_argument("-w", "--wait", required=False, help="wait for key after each frame")
 args = vars(ap.parse_args())
 
 # Prepare crop area
@@ -41,18 +40,11 @@ model = load_model(args["model"])
 # find the image paths and randomly shuffle them
 print("[INFO] loading images...")
 imagePaths = sorted(list(paths.list_images(args["dataset"], contains="capture")))
-#random.shuffle(imagePaths)
 print("[INFO] loaded %d images." % (len(imagePaths)))
 
-errors = None
-if args['errors']:
-    errors = open(args['errors'], "a")
-    errors_count = 0
-
-report = None
+report = sys.stdout
 if args['report']:
     report = open(args['report'], "a")
-    report_count = 0
 
 index = 0
 total = len(imagePaths)
@@ -73,23 +65,14 @@ for imagePath in imagePaths:
     (nothing, people) = model.predict(image)[0]
 
     # build the label
+    Pmax = people
+    Pmax_str = "%0.2f" % (Pmax * 100)
     if people > nothing:
-        label = "People"
-        proba = people
+        label = "People %s%%" % Pmax_str
         color = (0, 0, 255)
     else:
-        label = "No people"
-        proba = nothing
+        label = "No-people %s%%" % Pmax_str
         color = (255, 0, 0)
-    label = "{}: {:.2f}%".format(label, proba * 100)
-    log_message = "%s - %s" % (imagePath, label)
-    print("[%d/%d] %s" % (index, total, log_message))
-    if report:
-        report.write(log_message + "\n")
-
-    ## display only every 2nd image
-    #if index % 2 == 0:
-    #    continue
 
     # darken the ignored image part
     output = (orig * dark_factor).astype(numpy.uint8)
@@ -100,18 +83,20 @@ for imagePath in imagePaths:
 
     # show the output image
     cv2.imshow("Output", output)
-    key = cv2.waitKey(1)
+    key_raw = cv2.waitKey(0)
     try:
-        key = chr(key)
-        if key in [ 'q', 'Q' ]:
+        key = chr(key_raw)
+        if key in ['d', 'D']:
+            log_label = "delete"
+            os.unlink(imagePath)
+        elif key in ['p', 'P', 'y', 'Y']:
+            log_label = "people"
+        elif key in ['n', 'N']:
+            log_label = "nothing"
+        elif key in ['q', 'Q']:
             break
-        if key in [ 'n', 'N' ]:
-            if errors:
-                errors.write(log_message+"\n")
-                errors_count += 1
-            print('MISS: %s' % imagePath)
+        else:
+            log_label = "unknown"
+        print("%s:%s:%s" % (log_label, Pmax_str, imagePath), file=report)
     except:
         pass
-
-if errors:
-    print("Added %d misidentified images to %s" % (errors_count, args['errors']))
