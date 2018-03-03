@@ -7,8 +7,7 @@ import cv2
 from imutils import paths
 
 # Config
-#crop_start = (50, 280)
-crop_start = (53, 268)
+crop_start = (50, 285)
 crop_size = (224, 224)
 dark_factor = 0.3
 
@@ -39,6 +38,8 @@ for imagePath in imagePaths:
             print("people:%s" % imagePath)
         elif key in ['n', 'N']:
             print("nothing:%s" % imagePath)
+        elif key in ['q', 'Q']:
+            break
         else:
             print("unknown:%s" % imagePath)
     except:

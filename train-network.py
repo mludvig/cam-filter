@@ -18,9 +18,14 @@ from imutils import paths
 import matplotlib.pyplot as plt
 import numpy as np
 import argparse
+import numpy
 import random
 import cv2
 import os
+
+# Config
+crop_start = (50, 285)
+crop_size = (224, 224)
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
@@ -31,9 +36,15 @@ args = vars(ap.parse_args())
 
 # initialize the number of epochs to train for, initia learning rate,
 # and batch size
-EPOCHS = 15
+EPOCHS = 20
 INIT_LR = 1e-3
 BS = 32
+
+# Prepare crop area
+crop_area = numpy.index_exp[
+    crop_start[0]:crop_start[0]+crop_size[0],
+    crop_start[1]:crop_start[1]+crop_size[1]
+]
 
 # initialize the data and labels
 print("[INFO] loading images...")
@@ -49,8 +60,7 @@ print("[INFO] loaded %d images, resizing..." % (len(imagePaths)))
 for imagePath in imagePaths:
 	# load the image, pre-process it, and store it in the data list
 	image = cv2.imread(imagePath)
-	if image.shape != (224, 224, 3):
-		image = image[53:53+224, 268:268+224]       # crop to 224x224 starting from 53:268 (h:w)
+	image = image[crop_area]
 	image = cv2.resize(image, (28, 28))
 	image = img_to_array(image)
 	data.append(image)
