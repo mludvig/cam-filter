@@ -14,17 +14,7 @@ import numpy
 import sys
 import os
 import cv2
-
-# Config
-crop_start = (50, 285)
-crop_size = (224, 224)
-dark_factor = 0.3
-# Prepare crop area
-crop_area = numpy.index_exp[
-    crop_start[0]:crop_start[0]+crop_size[0],
-    crop_start[1]:crop_start[1]+crop_size[1]
-]
-
+from cam_config import cam_config
 
 # construct the argument parse and parse the arguments
 parser = argparse.ArgumentParser()
@@ -37,6 +27,12 @@ parser.add_argument("-D", "--display", action = "store_true", help = "Display pr
 parser.add_argument("-t", "--threshold", type=float, default = 0.20, required = False, help = "Probability threshold, default=$(default)s")
 parser.add_argument("-w", "--wait", action = "store_const", const = 0, default = 1, required = False, help = "Wait for key after displaying each frame")
 args = parser.parse_args()
+
+# Prepare crop area
+crop_area = numpy.index_exp[
+    cam_config.crop_start[0]:cam_config.crop_start[0]+cam_config.crop_size[0],
+    cam_config.crop_start[1]:cam_config.crop_start[1]+cam_config.crop_size[1]
+]
 
 # load the trained convolutional neural network
 print("[INFO] loading model...")
@@ -70,7 +66,7 @@ for imagePath in imagePaths:
 
     # pre-process the image for classification
     image = orig[crop_area]
-    image = cv2.resize(image, (28, 28))
+    image = cv2.resize(image, cam_config.net_size)
     image = image.astype("float") / 255.0
     image = img_to_array(image)
     image = np.expand_dims(image, axis=0)
@@ -81,7 +77,7 @@ for imagePath in imagePaths:
     avg_list.append(moving_avg(res_list, args.avg_num))
 
     # build the label
-    Pcur = avg_list[-1]
+    Pcur = res_list[-1]
     Pcur_str = "%0.2f" % (Pcur * 100)
     if Pcur > args.threshold:
         label = "People %s%%" % Pcur_str
@@ -90,9 +86,10 @@ for imagePath in imagePaths:
         label = "No-people %s%%" % Pcur_str
         color = (255, 0, 0)
 
+    log_label = "unknown"
     if args.save or args.display:
         # darken the ignored image part
-        output = (orig * dark_factor).astype(numpy.uint8)
+        output = (orig * cam_config.dark_factor).astype(numpy.uint8)
         output[crop_area] = orig[crop_area]
 
         # put the label
@@ -119,20 +116,18 @@ for imagePath in imagePaths:
                     break
                 else:
                     log_label = "unknown"
-                print("%s:%s:%s" % (log_label, Pcur_str, imagePath))
             except:
                 pass
 
-    if report:
-        if (index % int(total/50)) == 0:
-            print(".", end="")
-            sys.stdout.flush()
-        if index == total:
-            print("done")
+    # Simple progress indicator
+    if (index % int(total/50)) == 0:
+        print(".", end="")
+        sys.stdout.flush()
+    if index == total:
+        print("done")
 
-        if report:
-            log_message = "%s:%s" % (imagePath, Pcur_str)
-            report.write(log_message + "\n")
+    if report:
+        print("%s:%s:%s" % (log_label, Pcur_str, imagePath), file=report)
 
 t2 = datetime.now()
 td = (t2-t1).total_seconds()/float(index)

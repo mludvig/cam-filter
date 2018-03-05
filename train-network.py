@@ -22,17 +22,14 @@ import numpy
 import random
 import cv2
 import os
-
-# Config
-crop_start = (50, 285)
-crop_size = (224, 224)
+from cam_config import cam_config
 
 # construct the argument parse and parse the arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-d", "--dataset", required=True, help="path to input dataset")
-ap.add_argument("-m", "--model", required=True, help="path to output model")
-ap.add_argument("-p", "--plot", type=str, default="plot.png", help="path to output loss/accuracy plot")
-args = vars(ap.parse_args())
+parser = argparse.ArgumentParser()
+parser.add_argument("-m", "--model", required=True, help="path to output model")
+parser.add_argument("-d", "--dataset", required=True, help="path to input dataset")
+parser.add_argument("-p", "--plot", type=str, default="plot.png", help="path to output loss/accuracy plot")
+args = parser.parse_args()
 
 # initialize the number of epochs to train for, initia learning rate,
 # and batch size
@@ -42,8 +39,8 @@ BS = 32
 
 # Prepare crop area
 crop_area = numpy.index_exp[
-    crop_start[0]:crop_start[0]+crop_size[0],
-    crop_start[1]:crop_start[1]+crop_size[1]
+    cam_config.crop_start[0]:cam_config.crop_start[0]+cam_config.crop_size[0],
+    cam_config.crop_start[1]:cam_config.crop_start[1]+cam_config.crop_size[1]
 ]
 
 # initialize the data and labels
@@ -52,7 +49,7 @@ data = []
 labels = []
 
 # grab the image paths and randomly shuffle them
-imagePaths = sorted(list(paths.list_images(args["dataset"])))
+imagePaths = sorted(list(paths.list_images(args.dataset)))
 random.shuffle(imagePaths)
 print("[INFO] loaded %d images, resizing..." % (len(imagePaths)))
 
@@ -61,7 +58,7 @@ for imagePath in imagePaths:
 	# load the image, pre-process it, and store it in the data list
 	image = cv2.imread(imagePath)
 	image = image[crop_area]
-	image = cv2.resize(image, (28, 28))
+	image = cv2.resize(image, cam_config.net_size)
 	image = img_to_array(image)
 	data.append(image)
 
@@ -91,7 +88,7 @@ aug = ImageDataGenerator(rotation_range=30, width_shift_range=0.1,
 
 # initialize the model
 print("[INFO] compiling model...")
-model = LeNet.build(width=28, height=28, depth=3, classes=2)
+model = LeNet.build(width=cam_config.net_size[0], height=cam_config.net_size[1], depth=3, classes=2)
 opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
 model.compile(loss="binary_crossentropy", optimizer=opt,
 	metrics=["accuracy"])
@@ -104,7 +101,7 @@ H = model.fit_generator(aug.flow(trainX, trainY, batch_size=BS),
 
 # save the model to disk
 print("[INFO] serializing network...")
-model.save(args["model"])
+model.save(args.model)
 
 # plot the training loss and accuracy
 plt.style.use("ggplot")
@@ -118,4 +115,4 @@ plt.title("Training Loss and Accuracy on People/No People")
 plt.xlabel("Epoch #")
 plt.ylabel("Loss/Accuracy")
 plt.legend(loc="lower left")
-plt.savefig(args["plot"])
+plt.savefig(args.plot)

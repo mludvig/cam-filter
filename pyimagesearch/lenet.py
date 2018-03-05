@@ -13,6 +13,7 @@ class LeNet:
 		# initialize the model
 		model = Sequential()
 		inputShape = (height, width, depth)
+		layer1_nodes = int(width*height*0.638)
 
 		# if we are using "channels first", update the input shape
 		if K.image_data_format() == "channels_first":
@@ -31,7 +32,7 @@ class LeNet:
 
 		# first (and only) set of FC => RELU layers
 		model.add(Flatten())
-		model.add(Dense(500))
+		model.add(Dense(layer1_nodes))
 		model.add(Activation("relu"))
 
 		# softmax classifier
