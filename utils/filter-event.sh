@@ -6,7 +6,7 @@ BASE_PATH=/var/lib/zoneminder
 ZM_URL=https://hlinik.fritz.box/zm
 
 REPORT_PATH=/tmp/report-$(date +%s)
-REPORT_EVENT=${REPORT_PATH}/report-event-%d.log
+REPORT_EVENT=${REPORT_PATH}/report-event-%d.json
 REPORT_JSON=${REPORT_PATH}/report.json
 REPORT_LOG=${REPORT_PATH}/report.log
 
@@ -41,21 +41,22 @@ while (true) do
 	echo
 
 	REPORT_FILE=$(printf ${REPORT_EVENT} ${EVENT_ID})
-	python -W ignore ./analyse-event.py --model ${MODEL} --dataset ${BASE_PATH}/${EVENT_PATH} --report ${REPORT_FILE}
-	RESULT=$(tail -n1 ${REPORT_FILE})
+	curl -s http://localhost:8090/?dataset=${BASE_PATH}/${EVENT_PATH} > ${REPORT_FILE}
+	VERDICT=$(jq -r '.verdict | { "result": .result, "pct_avg": ((.p_avg * 10000 | floor) / 100) } | @text "\(.result | ascii_upcase) \(.pct_avg)%"' ${REPORT_FILE})
 
-	echo "Event-${EVENT_ID} ${BASE_PATH}/${EVENT_PATH} ${START_TIME} ${LENGTH}s ${FRAMES} ${RESULT}" | tee -a ${REPORT_LOG}
-	RESULT_LABEL=$(cut -d\  -f1 <<< ${RESULT})
-	RESULT_PMAX=$(cut -d= -f2 <<< ${RESULT} | cut -d% -f1)
-	EVENT=$(jq --arg _label "${RESULT_LABEL}" --arg _pmax "${RESULT_PMAX}" '. + { "Label": $_label, "Pmax": $_pmax }' <<< ${EVENT})
+	echo "Event-${EVENT_ID} ${BASE_PATH}/${EVENT_PATH} ${START_TIME} ${LENGTH}s ${FRAMES} ${VERDICT}" | tee -a ${REPORT_LOG}
+	VERDICT_LABEL=$(cut -d\  -f1 <<< ${VERDICT})
+	VERDICT_PMAX=$(cut -d\  -f2 <<< ${VERDICT} | cut -d% -f1)
+	EVENT=$(jq --arg _label "${VERDICT_LABEL}" --arg _pmax "${VERDICT_PMAX}" '. + { "Label": $_label, "Pmax": $_pmax }' <<< ${EVENT})
 	jq --argjson append "[${EVENT}]" '. += $append' ${REPORT_JSON} > ${REPORT_JSON}.$$
 	mv -fv ${REPORT_JSON}.$$ ${REPORT_JSON}
 
-	if [ "${RESULT:0:6}" == "PEOPLE" ]; then
-		echo -e "\e[32;1mRetaining Event-${EVENT_ID} [${RESULT}]\e[0m"
+	if [ "${VERDICT:0:6}" == "PEOPLE" ]; then
+		echo -e "\e[32;1mRetaining Event-${EVENT_ID} [${VERDICT}]\e[0m"
 	else
-		echo -e "\e[31;1mDeleting Event-${EVENT_ID} [${RESULT}]\e[0m"
+		echo -e "\e[31;1mDeleting Event-${EVENT_ID} [${VERDICT}]\e[0m"
 	fi
+	curl -XPUT -k ${ZM_URL}/api/events/${EVENT_ID}.json -d "Event[Name]=Event-${EVENT_ID}-${VERDICT_PMAX%%%}"
 	echo ==================
 	echo
 

@@ -23,14 +23,16 @@ import json
 # construct the argument parse and parse the arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model", required = True, help = "Path to trained model")
-parser.add_argument("-d", "--dataset", required = True, help = "Path to tested images")
+group = parser.add_mutually_exclusive_group(required = True)
+group.add_argument("-d", "--dataset", help = "Path to tested images")
+group.add_argument("-p", "--port", type=int, help = "Run API server on this port")
+
 parser.add_argument("-n", "--avg-num", type = int, default = 20, help = "moving average sample length, default = %(default)s")
 parser.add_argument("-r", "--report", required = False, help = "Path to report log file")
 parser.add_argument("-s", "--save", required = False, help = "Path to directory for storing processed images")
 parser.add_argument("-D", "--display", action = "store_true", help = "Display processed images, default=%(default)s")
 parser.add_argument("-t", "--threshold", type=float, default = 0.20, required = False, help = "Probability threshold, default=$(default)s")
 parser.add_argument("-w", "--wait", action = "store_const", const = 0, default = 1, required = False, help = "Wait for key after displaying each frame")
-parser.add_argument("-p", "--port", type=int, help = "Run API server on this port")
 args = parser.parse_args()
 
 # Prepare crop area
@@ -161,7 +163,7 @@ def process_dataset(dataset):
 
     avg_list_max = np.array(avg_list).max()
     result = avg_list_max <= args.threshold and "nothing" or "people"
-    report['final'] = { "result": result, "p_avg": float(avg_list_max) }
+    report['verdict'] = { "result": result, "p_avg": float(avg_list_max) }
 
     return report
 
@@ -176,11 +178,10 @@ if __name__ == "__main__":
     if args.port:
         run_http_server(args.port)
 
-    raise   # TODO
-    #if args.report:
-    #    report = open(args.report, "a")
-
-    #print(message)
-    #if report:
-    #    print(message, file=report)
-
+    else:
+        report = process_dataset(args.dataset)
+        if args.report:
+            with open(args.report, "a") as report_file:
+                for result in report['results']:
+                    print("%s:%0.4f:%0.4f:%s" % result, file = report_file)
+                print("%(result)s:%(p_avg)0.4f::verdict" % report['verdict'], file=report_file)
